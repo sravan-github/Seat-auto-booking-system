@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Seat Auto Assign System</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f1f3f8;
+        }
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        label {
+            font-weight: bold;
+            color: #555;
+            margin-top: 8px;
+        }
+        input[type="text"],
+        input[type="number"] {
+            padding: 10px;
+            font-size: 16px;
+            width: 200px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s ease;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: #fff;
+        }
+        th {
+            background: #007bff;
+            color: #fff;
+            padding: 12px;
+            text-align: left;
+        }
+        td {
+            border-bottom: 1px solid #eee;
+            padding: 12px;
+            color: #333;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        #message {
+            margin-top: 20px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        @media(max-width: 600px) {
+            .form-group {
+                flex-direction: column;
+            }
+            input, button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Seat Auto Assign System</h1>
+
+    <div class="form-group">
+        <label for="userName">Your Name:</label>
+        <input type="text" id="userName" placeholder="Enter your name" />
+        <button onclick="bookSeat()">Book Seat</button>
+    </div>
+
+    <div class="form-group">
+        <button onclick="listSeats()">List All Seats</button>
+        <button onclick="listBookings()">List All Bookings</button>
+    </div>
+
+    <div class="form-group">
+        <label for="bookingId">Booking ID to Cancel:</label>
+        <input type="number" id="bookingId" placeholder="Booking ID" />
+        <button onclick="cancelBooking()">Cancel Booking</button>
+    </div>
+
+    <div id="message"></div>
+
+    <table id="resultTable" style="display: none;">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+    const API_BASE = "http://localhost:8080/api/seats";
+
+    function bookSeat() {
+        const userName = document.getElementById("userName").value.trim();
+        if (!userName) {
+            showMessage("Please enter your name.", "error");
+            return;
+        }
+
+        fetch(API_BASE + "/book?userName=" + encodeURIComponent(userName), {
+            method: "POST"
+        })
+        .then(res => res.json())
+        .then(data => {
+            showMessage(
+                `Seat ${data.seat.seatNumber} booked successfully for ${data.userName}!`,
+                "success"
+            );
+            document.getElementById("resultTable").style.display = "none";
+        })
+        .catch(err => {
+            console.error(err);
+            showMessage("Failed to book seat.", "error");
+        });
+    }
+
+    function listSeats() {
+        fetch(API_BASE)
+            .then(res => res.json())
+            .then(data => {
+                displayTable(
+                    ["ID", "Seat Number", "Status"],
+                    data.map(seat => [seat.id, seat.seatNumber, seat.status])
+                );
+            })
+            .catch(err => {
+                console.error(err);
+                showMessage("Failed to load seats.", "error");
+            });
+    }
+
+    function listBookings() {
+        fetch(API_BASE + "/bookings")
+            .then(res => res.json())
+            .then(data => {
+                displayTable(
+                    ["Booking ID", "User Name", "Seat Number"],
+                    data.map(b => [b.id, b.userName, b.seat.seatNumber])
+                );
+            })
+            .catch(err => {
+                console.error(err);
+                showMessage("Failed to load bookings.", "error");
+            });
+    }
+
+    function cancelBooking() {
+        const bookingId = document.getElementById("bookingId").value;
+        if (!bookingId) {
+            showMessage("Please enter a booking ID.", "error");
+            return;
+        }
+
+        fetch(`${API_BASE}/cancel/${bookingId}`, {
+            method: "DELETE"
+        })
+        .then(res => {
+            if (res.ok) {
+                showMessage(`Booking ${bookingId} cancelled successfully.`, "success");
+                document.getElementById("resultTable").style.display = "none";
+            } else {
+                showMessage(`Failed to cancel booking.`, "error");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showMessage("Error cancelling booking.", "error");
+        });
+    }
+
+    function displayTable(headers, rows) {
+        const head = document.getElementById("tableHead");
+        const body = document.getElementById("tableBody");
+
+        head.innerHTML = "";
+        body.innerHTML = "";
+
+        let headerRow = "<tr>";
+        headers.forEach(h => headerRow += `<th>${h}</th>`);
+        headerRow += "</tr>";
+        head.innerHTML = headerRow;
+
+        rows.forEach(row => {
+            let rowHtml = "<tr>";
+            row.forEach(cell => rowHtml += `<td>${cell}</td>`);
+            rowHtml += "</tr>";
+            body.innerHTML += rowHtml;
+        });
+
+        document.getElementById("resultTable").style.display = "table";
+        document.getElementById("message").style.display = "none";
+    }
+
+    function showMessage(msg, type) {
+        const el = document.getElementById("message");
+        el.textContent = msg;
+        el.className = type;
+        el.style.display = "block";
+    }
+</script>
+</body>
+</html>
